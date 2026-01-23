@@ -1,0 +1,47 @@
+#rimuovi Apache HTTPD
+- name: Rimuovi Apache HTTPD
+  hosts: all
+  become: true
+  tasks:
+    #ferma e disabilita il servizio httpd
+    - name: Ferma e disabilita il servizio Apache HTTPD
+      systemd:
+        name: httpd
+        state: stopped
+        enabled: false
+        daemon_reload: yes
+      failed_when: false  # Se il servizio non esiste, non considerarlo un erro
+    
+    - name: Disinstalla Apache HTTPD
+      dnf:
+        name: httpd
+        state: absent
+        autoremove: yes
+    
+    #rimuovi le directory residue di Apache
+    - name: Rimuovi le directory residue di Apache HTTPD
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/httpd
+        - /var/log/httpd
+        - /var/www/html
+        - /usr/lib64/httpd
+        - /var/lib/httpd
+        - /run/httpd.pid
+
+    #stampa messaggio di conferma
+    - name: Mostra messaggio di conferma per la rimozione di Apache
+      debug:
+        msg: "Apache HTTPD è stato rimosso correttamente."
+
+    #pulizia finale dei metadati DNF
+    - name: Pulizia finale dei metadati DNF
+      command: dnf clean all
+      changed_when: false 
+
+    #ricarica systemd per eliminare ogni traccia
+    - name: Ricarica systemd per eliminare ogni traccia di Apache
+      systemd:
+        daemon_reload: yes

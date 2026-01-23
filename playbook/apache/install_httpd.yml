@@ -14,11 +14,12 @@
       debug:
         msg: "Apache HTTPD è stato installato correttamente."
 
+    #se è già installato prosegui con gli altri task
     # Richiama il file dei task SSL
     - import_tasks: tasks/ssl_httpd.yml
     # Richiama il file dei task firewall
     - import_tasks: tasks/firewall.yml
-    
+
     #avvia e abilita Apache
     - name: Avvia e abilita Apache HTTPD
       service:

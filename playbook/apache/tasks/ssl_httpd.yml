@@ -9,17 +9,6 @@
   debug:
     msg: "mod_ssl è stato installato correttamente."
 
-#installa mod_cluster
-- name: installa mod_cluster
-  dnf:
-    name: mod_cluster
-    state: present
-    update_cache: true
-#stampa messaggio di conferma
-- name: mostra messaggio di conferma per l'installazione di mod_cluster 
-  debug:
-    msg: "mod_cluster è stato installato correttamente."
-
 #installa mod_security
 - name: installa mod_security
   dnf:

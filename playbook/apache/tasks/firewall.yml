@@ -1,0 +1,31 @@
+---
+- name: Configure Firewall for httpd
+  service:
+    name: firewalld
+    state: started
+    enabled: true
+
+#apri la porta 81 per HTTP
+- name: abilita la porta 81 nel firewall
+  firewalld:
+    port: 81/tcp
+    permanent: true
+    state: enabled
+    immediate: yes
+
+#apri la porta 444 per HTTPS
+- name: abilita la porta 444 nel firewall
+  firewalld:
+    port: 444/tcp
+    permanent: true
+    state: enabled
+    immediate: yes
+
+#ricarica il firewall per applicare le modifiche
+- name: ricarica il firewall
+  command: firewall-cmd --reload
+
+#messaggio di conferma
+- name: mostra messaggio di conferma
+  debug:
+    msg: "Le porte 81 e 444 sono state abilitate nel firewall."

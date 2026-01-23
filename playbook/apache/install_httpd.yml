@@ -1,0 +1,27 @@
+#verifica se apache è installato
+- name: Verifica se Apache è installato
+  hosts: all
+  become: true
+  tasks:
+    - name: Installa Apache HTTPD
+      dnf:
+        name: httpd
+        state: present
+        update_cache: true
+
+    #stampa messaggio di conferma
+    - name: Mostra messaggio di conferma per l'installazione di Apache
+      debug:
+        msg: "Apache HTTPD è stato installato correttamente."
+
+    # Richiama il file dei task SSL
+    - import_tasks: tasks/ssl_httpd.yml
+    # Richiama il file dei task firewall
+    - import_tasks: tasks/firewall.yml
+    
+    #avvia e abilita Apache
+    - name: Avvia e abilita Apache HTTPD
+      service:
+        name: httpd
+        state: started
+        enabled: true

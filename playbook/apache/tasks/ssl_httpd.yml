@@ -45,4 +45,39 @@
   args:
     creates: /etc/httpd/ssl/cert.pem
 
+#configura Apache per usare SSL
+- name: configura Apache per usare SSL
+  copy:
+    content: |
+      <VirtualHost *:444>
+          ServerAdmin admin@example.com
+          DocumentRoot /var/www/html
+          SSLEngine on
+          SSLCertificateFile /etc/httpd/ssl/cert.pem
+          SSLCertificateKeyFile /etc/httpd/ssl/key.pem
+      </VirtualHost>
+    dest: /etc/httpd/conf.d/ssl.conf
+    mode: '0644'
 
+#crea la pagina di benvenuto in HTTPS
+- name: crea la pagina di benvenuto in HTTPS
+  copy:
+    content: |
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Benvenuto in Apache HTTPS</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              text-align: center;
+              margin-top: 50px;
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Successo! Apache &egrave configurato in HTTPS.</h1>
+          <p>Questa pagina &egrave stata generata da Ansible.</p>
+        </body>
+      </html>
+    dest: /var/www/html/index.html

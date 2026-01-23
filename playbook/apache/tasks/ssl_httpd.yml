@@ -59,6 +59,13 @@
     dest: /etc/httpd/conf.d/ssl.conf
     mode: '0644'
 
+#se non esiste crea la cartella /var/www/html
+- name: crea la cartella /var/www/html se non esiste
+  file:
+    path: /var/www/html
+    state: directory
+    mode: '0755'
+
 #crea la pagina di benvenuto in HTTPS
 - name: crea la pagina di benvenuto in HTTPS
   copy:

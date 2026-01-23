@@ -1,0 +1,35 @@
+---
+#verifica se nginx è installato
+- name: Installa e configura Nginx con SSL e Firewall
+  hosts: all
+  become: true
+  tasks:
+    - name: verifica se Nginx è installato
+      dnf:
+        name: nginx
+        state: present
+        update_cache: true
+
+    #stampa messaggio di conferma
+    - name: mostra messaggio di conferma per l'installazione di Nginx
+      debug:
+        msg: "Nginx è stato installato correttamente."
+
+    #crea la directory per il sito web
+    - name: crea la directory per il sito web di Nginx
+      file:
+        path: /var/www/nginx/html
+        state: directory
+        mode: '0755'
+
+    # Richiama il file dei task SSL
+    - import_tasks: tasks/ssl_nginx.yml
+    # Richiama il file dei task firewall
+    - import_tasks: tasks/firewall.yml
+
+    #avvia e abilita Nginx
+    - name: avvia e abilita Nginx
+      service:
+        name: nginx
+        state: started
+        enabled: true

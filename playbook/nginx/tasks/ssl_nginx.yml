@@ -1,0 +1,82 @@
+---
+- name: crea la directory per i certificati SSL
+  file:
+    #path della directory
+    path: /etc/nginx/ssl
+    #tipo di file (in questo caso una cartella)
+    state: directory
+    #assegna i permessi
+    mode: '0755'
+
+#verifica se il certificato esiste già
+- name: verifica se il certificato SSL esiste
+  stat:
+    path: /etc/nginx/ssl/nginx-selfsigned.crt
+  register: ssl_cert
+
+#genera il certificato
+- name: genera il certificato autofirmato
+  command: >
+    openssl req -new -newkey rsa:2048 -days 365 -nodes -x509
+    -subj "/C=IT/ST=Italy/L=Rome/O=MyCompany/OU=IT/CN=example.com"
+    -keyout /etc/nginx/ssl/nginx-selfsigned.key
+    -out /etc/nginx/ssl/nginx-selfsigned.crt
+  when: not ssl_cert.stat.exists
+  args:
+    creates: /etc/nginx/ssl/nginx-selfsigned.crt
+
+#verifica che esiste il path /etc/nginx/conf.d
+- name: verifica se esiste il path /etc/nginx/conf.d
+  stat:
+    path: /etc/nginx/conf.d 
+#Se non esiste crea la cartella
+- name: crea la cartella /etc/nginx/conf.d se non esiste
+  file:
+    path: /etc/nginx/conf.d
+    state: directory
+    mode: '0755'
+
+#messaggio di conferma per aver creato la directory del file di configurazione
+- name: mostra messaggio di conferma per la creazione della cartella di configurazione
+  debug:
+    msg: "La cartella /etc/nginx/conf.d è stata creata."
+
+- name: configura Nginx per usare SSL
+  copy:
+    content: |
+      server {
+          listen 443 ssl;
+          server_name example.com;
+
+          ssl_certificate /etc/nginx/ssl/nginx-selfsigned.crt;
+          ssl_certificate_key /etc/nginx/ssl/nginx-selfsigned.key;
+
+          location / {
+              root /var/www/nginx/html;
+              index index.html;
+          }
+      }
+    dest: /etc/nginx/conf.d/ssl.conf
+    mode: '0644'
+  
+- name: Crea la pagina web di benvenuto
+  copy:
+    content: |
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <title>Benvenuto su Nginx SSL</title>
+          <style>
+              body { font-family: sans-serif; text-align: center; margin-top: 50px; }
+              h1 { color: #009688; }
+          </style>
+      </head>
+      <body>
+          <h1>Successo! Nginx &egrave configurato in HTTPS.</h1>
+          <p>Questa pagina &egrave stata generata da Ansible.</p>
+      </body>
+      </html>
+    dest: /var/www/nginx/html/index.html
+    owner: nginx
+    group: nginx
+    mode: '0644'

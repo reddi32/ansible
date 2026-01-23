@@ -1,0 +1,16 @@
+# Ignora i binari e i pacchetti scaricati
+minikube-linux-amd64
+*.rpm
+
+# Ignora le cartelle di servizio
+.vagrant/
+awx-deploy/
+insecure_private_keys/
+insecure_private_key
+*.key
+*.rsa
+*.ed25519
+
+# Ignora log e file temporanei
+*.log
+*.retry

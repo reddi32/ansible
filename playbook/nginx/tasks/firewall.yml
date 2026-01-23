@@ -1,0 +1,31 @@
+---
+- name: Configure Firewall for Nginx
+  service:
+    name: firewalld
+    state: started
+    enabled: true
+
+#apri la porta 80 per HTTP
+- name: abilita la porta 80 nel firewall
+  firewalld:
+    port: 80/tcp
+    permanent: true
+    state: enabled
+    immediate: yes
+
+#apri la porta 443 per HTTPS
+- name: abilita la porta 443 nel firewall
+  firewalld:
+    port: 443/tcp
+    permanent: true
+    state: enabled
+    immediate: yes
+
+#ricarica il firewall per applicare le modifiche
+- name: ricarica il firewall
+  command: firewall-cmd --reload
+
+#messaggio di conferma
+- name: mostra messaggio di conferma
+  debug:
+    msg: "Le porte 80 e 443 sono state abilitate nel firewall."

@@ -1,0 +1,38 @@
+---
+- name: Reset Totale Nginx senza errori
+  hosts: all
+  become: true
+  tasks:
+    - name: 1. Disabilita e ferma il servizio Nginx
+      systemd:
+        name: nginx
+        enabled: false
+        state: stopped
+        daemon_reload: yes
+      failed_when: false # Se il servizio non esiste, non considerarlo un errore
+
+    - name: 2. Rimuovi il pacchetto Nginx tramite DNF
+      dnf:
+        name: nginx
+        state: absent
+        autoremove: yes
+
+    - name: 3. Rimuovi fisicamente tutte le directory residue
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/nginx
+        - /var/log/nginx
+        - /var/www/nginx
+        - /usr/share/nginx
+        - /var/lib/nginx
+        - /run/nginx.pid
+
+    - name: 4. Pulizia finale dei metadati DNF
+      command: dnf clean all
+      changed_when: false
+
+    - name: 5. Ricarica systemd per eliminare ogni traccia
+      systemd:
+        daemon_reload: yes

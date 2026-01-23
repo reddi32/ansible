@@ -59,6 +59,13 @@
     dest: /etc/httpd/conf.d/ssl.conf
     mode: '0644'
 
+#cambia la porta di ascolto da 443 a 444
+- name: Cambia la porta di ascolto di Apache da 443 a 444
+  lineinfile:
+    path: /etc/httpd/conf.d/ssl.conf
+    regexp: '^Listen 443'
+    line: 'Listen 444'
+    backup: yes
 #se non esiste crea la cartella /var/www/html
 - name: crea la cartella /var/www/html se non esiste
   file:

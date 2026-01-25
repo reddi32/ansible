@@ -40,6 +40,12 @@
         state: present
         update_cache: true
 
+    - name: crea la directory per il sito web di Nginx
+      file:
+        path: /var/www/nginx/html
+        state: directory
+        mode: '0755'
+
     - import_tasks: tasks/ssl_nginx.yml
 
     - name: Crea configurazione LB dinamica

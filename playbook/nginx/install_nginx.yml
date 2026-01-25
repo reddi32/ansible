@@ -1,7 +1,6 @@
 ---
-#verifica se nginx è installato
-- name: Installa e configura Nginx con SSL e Firewall
-  hosts: all
+- name: Installa e configura Nginx con SSL e Firewall (nodi)
+  hosts: webservers
   become: true
   tasks:
     - name: verifica se Nginx è installato
@@ -10,25 +9,78 @@
         state: present
         update_cache: true
 
-    #stampa messaggio di conferma
     - name: mostra messaggio di conferma per l'installazione di Nginx
       debug:
         msg: "Nginx è stato installato correttamente."
 
-    #crea la directory per il sito web
     - name: crea la directory per il sito web di Nginx
       file:
         path: /var/www/nginx/html
         state: directory
         mode: '0755'
 
-    # Richiama il file dei task SSL
     - import_tasks: tasks/ssl_nginx.yml
-    # Richiama il file dei task firewall
     - import_tasks: tasks/firewall.yml
 
-    #avvia e abilita Nginx
     - name: avvia e abilita Nginx
+      service:
+        name: nginx
+        state: started
+        enabled: true
+
+- name: Configura il Bilanciatore Dinamico (load balancer)
+  hosts: loadbalancer
+  become: true
+  vars:
+    lb_ip_address: "{{ lb_ip_address | default('loadbalancer.example.com') }}"
+  tasks:
+    - name: Installa Nginx sul LB
+      dnf:
+        name: nginx
+        state: present
+        update_cache: true
+
+    - name: Crea directory per i certificati LB
+      file:
+        path: /etc/nginx/ssl
+        state: directory
+        mode: '0755'
+
+    - name: (Opzionale) copia certificati sul LB
+      copy:
+        src: files/nginx.crt
+        dest: /etc/nginx/ssl/nginx.crt
+        mode: '0644'
+      ignore_errors: true
+
+    - name: Crea configurazione LB dinamica
+      copy:
+        dest: /etc/nginx/conf.d/load_balancer.conf
+        content: |
+          upstream my_backend {
+              server 172.16.106.131:443;
+              server 172.16.106.132:443;
+          }
+
+          server {
+              listen 80;
+              listen 443 ssl;
+              server_name {{ lb_ip_address }};
+
+              ssl_certificate /etc/nginx/ssl/nginx.crt;
+              ssl_certificate_key /etc/nginx/ssl/nginx.key;
+
+              location / {
+                  proxy_pass https://my_backend;
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+                  proxy_ssl_verify off;
+              }
+          }
+
+    - name: avvia e abilita Nginx sul LB
       service:
         name: nginx
         state: started

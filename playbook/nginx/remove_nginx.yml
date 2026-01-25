@@ -1,6 +1,6 @@
 ---
 - name: Reset Totale Nginx senza errori
-  hosts: all
+  hosts: webservers
   become: true
   tasks:
     - name: 1. Disabilita e ferma il servizio Nginx

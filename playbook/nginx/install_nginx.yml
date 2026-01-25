@@ -40,18 +40,7 @@
         state: present
         update_cache: true
 
-    - name: Crea directory per i certificati LB
-      file:
-        path: /etc/nginx/ssl
-        state: directory
-        mode: '0755'
-
-    - name: (Opzionale) copia certificati sul LB
-      copy:
-        src: files/nginx.crt
-        dest: /etc/nginx/ssl/nginx.crt
-        mode: '0644'
-      ignore_errors: true
+    - import_tasks: tasks/ssl_nginx.yml
 
     - name: Crea configurazione LB dinamica
       copy:

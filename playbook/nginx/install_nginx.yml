@@ -62,8 +62,8 @@
               listen 443 ssl;
               server_name {{ lb_ip_address }};
 
-              ssl_certificate /etc/nginx/ssl/nginx.crt;
-              ssl_certificate_key /etc/nginx/ssl/nginx.key;
+              ssl_certificate /etc/nginx/ssl/nginx-selfsigned.crt;
+              ssl_certificate_key /etc/nginx/ssl/nginx-selfsigned.key;
 
               location / {
                   proxy_pass https://my_backend;

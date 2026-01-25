@@ -1,97 +1,54 @@
-#installa mod_ssl
-- name: installa mod_ssl
-  dnf:
-    name: mod_ssl
-    state: present
-    update_cache: true
-#stampa messaggio di conferma
-- name: mostra messaggio di conferma per l'installazione di mod_ssl
-  debug:
-    msg: "mod_ssl è stato installato correttamente."
+# In tasks/ssl_httpd.yml
 
-#installa mod_security
-- name: installa mod_security
+- name: Installa pacchetti di sicurezza
   dnf:
-    name: mod_security
+    name: 
+      - mod_ssl
+      - mod_security
+      - openssl
     state: present
-    update_cache: true
-#stampa messaggio di conferma
-- name: mostra messaggio di conferma per l'installazione di mod_security
-  debug:
-    msg: "mod_security è stato installato correttamente."
 
-#crea la directory per i certificati SSL
-- name: crea la directory per i certificati SSL
+- name: Crea directory per certificati
   file:
-    #path della directory
     path: /etc/httpd/ssl
     state: directory
     mode: '0755'
 
-#verifica se il certificato esiste già
-- name: verifica se il certificato SSL esiste
+- name: Verifica esistenza certificato
   stat:
     path: /etc/httpd/ssl/cert.pem
   register: ssl_cert
 
-#se esiste non fare nulla, altrimenti genera il certificato
-- name: genera il certificato autofirmato
+- name: Genera certificato autofirmato
   command: >
     openssl req -new -newkey rsa:2048 -days 365 -nodes -x509
     -subj "/C=IT/ST=Italy/L=Rome/O=MyCompany/OU=IT/CN=example.com"
     -keyout /etc/httpd/ssl/key.pem
     -out /etc/httpd/ssl/cert.pem
   when: not ssl_cert.stat.exists
-  args:
-    creates: /etc/httpd/ssl/cert.pem
 
-#configura Apache per usare SSL
-- name: configura Apache per usare SSL
+- name: Configura VirtualHost SSL su porta 444
   copy:
+    dest: /etc/httpd/conf.d/ssl_custom.conf
     content: |
+      Listen 444
       <VirtualHost *:444>
           ServerAdmin admin@example.com
           DocumentRoot /var/www/html
+          
           SSLEngine on
           SSLCertificateFile /etc/httpd/ssl/cert.pem
           SSLCertificateKeyFile /etc/httpd/ssl/key.pem
+          
+          SSLCipherSuite ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384
+          SSLProtocol -all +TLSv1.2 +TLSv1.3
+
+          ErrorLog "logs/ssl_error_log"
+          CustomLog "logs/ssl_access_log" combined
+
+          <IfModule mod_security2.c>
+              SecRuleEngine On
+              SecRequestBodyAccess On
+          </IfModule>
       </VirtualHost>
-    dest: /etc/httpd/conf.d/ssl.conf
     mode: '0644'
-
-#cambia la porta di ascolto da 443 a 444
-- name: Cambia la porta di ascolto di Apache da 443 a 444
-  lineinfile:
-    path: /etc/httpd/conf.d/ssl.conf
-    regexp: '^Listen 443'
-    line: 'Listen 444'
-    backup: yes
-#se non esiste crea la cartella /var/www/html
-- name: crea la cartella /var/www/html se non esiste
-  file:
-    path: /var/www/html
-    state: directory
-    mode: '0755'
-
-#crea la pagina di benvenuto in HTTPS
-- name: crea la pagina di benvenuto in HTTPS
-  copy:
-    content: |
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Benvenuto in Apache HTTPS</title>
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              text-align: center;
-              margin-top: 50px;
-            }
-          </style>
-        </head>
-        <body>
-          <h1>Successo! Apache &egrave configurato in HTTPS.</h1>
-          <p>Questa pagina &egrave stata generata da Ansible.</p>
-        </body>
-      </html>
-    dest: /var/www/html/index.html

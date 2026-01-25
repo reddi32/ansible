@@ -1,56 +1,21 @@
-#verifica se apache è installato
-- name: Verifica se Apache è installato
+#installa apache httpd su fedora
+---
+- name: Installa e configura Apache HTTPD su Fedora
   hosts: all
-  become: true
+  become: yes
+  vars:
+    httpd_port: 81
   tasks:
-    - name: Installa Apache HTTPD
+    - name: Installa il pacchetto httpd
       dnf:
         name: httpd
         state: present
-        update_cache: true
 
-    #stampa messaggio di conferma
-    - name: Mostra messaggio di conferma per l'installazione di Apache
-      debug:
-        msg: "Apache HTTPD è stato installato correttamente."
-
-    #verifica se esiste la directory /etc/httpd/conf
-    - name: Verifica se esiste il path /etc/httpd/conf
-      stat:
-        path: /etc/httpd/conf
-      register: httpd_conf_dir
-
-    #se non esiste stampa messaggio di avviso
-    - name: Mostra messaggio di avviso se la cartella di configurazione non esiste
-      debug:
-        msg: "La cartella /etc/httpd/conf non esiste e verrà creata."
-      when: not httpd_conf_dir.stat.exists
-
-    #crea la cartella
-    - name: Crea la cartella /etc/httpd/conf se non esiste
-      file:
-        path: /etc/httpd/conf
-        state: directory
-        mode: '0755'
-      when: not httpd_conf_dir.stat.exists
-
-    #cambia la porta di ascolto da 80 a 81
-    - name: Cambia la porta di ascolto di Apache da 80 a 81
-      lineinfile:  
-        path: /etc/httpd/conf/httpd.conf
-        regexp: '^Listen 80'
-        line: 'Listen 81'
-        backup: yes
-
-    #se è già installato prosegui con gli altri task
-    # Richiama il file dei task SSL
-    - import_tasks: tasks/ssl_httpd.yml
-    # Richiama il file dei task firewall
     - import_tasks: tasks/firewall.yml
-
-    #avvia e abilita Apache
-    - name: Avvia e abilita Apache HTTPD
+    - import_tasks: tasks/ssl_httpd.yml
+    
+    - name: Avvia Apache
       service:
         name: httpd
-        state: started
+        state: restarted
         enabled: true

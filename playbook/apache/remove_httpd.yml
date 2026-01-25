@@ -10,7 +10,13 @@
         state: stopped
         enabled: false
         daemon_reload: yes
-      failed_when: false  # Se il servizio non esiste, non considerarlo un erro
+      failed_when: false  # Se il servizio non esiste, non considerarlo un errore
+
+    #Rimuovi mod_security e httpd per pulizia completa
+    - name: Disinstalla mod_security
+      dnf:
+        name: mod_security
+        state: absent
     
     - name: Disinstalla Apache HTTPD
       dnf:

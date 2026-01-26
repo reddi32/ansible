@@ -23,9 +23,9 @@
 
 #se trovi il processo fallisci l'installazione
 - name: Fallisci se httpd è già in esecuzione
-      fail:
-        msg: "Il processo httpd è già in esecuzione. Interrompo."
-      when: httpd_process.rc == 0
+  fail:
+    msg: "Il processo httpd è già in esecuzione. Interrompo."
+  when: httpd_process.rc == 0
 
 - name: Installa Apache e i moduli indispensabili
   dnf:

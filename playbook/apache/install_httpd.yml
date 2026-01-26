@@ -1,21 +1,94 @@
 #installa apache httpd su fedora
 ---
-- name: Installa e configura Apache HTTPD su Fedora
-  hosts: all
-  become: yes
-  vars:
-    httpd_port: 81
-  tasks:
-    - name: Installa il pacchetto httpd
-      dnf:
-        name: httpd
-        state: present
 
-    - import_tasks: tasks/firewall.yml
-    - import_tasks: tasks/ssl_httpd.yml
+#verifica se è presente il processo httpd
+- name: Verifica se httpd è installato
+  hosts: webservers
+  become: yes
+  tasks:
+    - name: Controlla se il processo httpd è in esecuzione
+      shell: pgrep httpd
+      register: httpd_process
+      ignore_errors: yes
+
+    - name: Mostra lo stato del processo httpd
+      debug:
+        msg: "Il processo httpd è in esecuzione."
+      when: httpd_process.rc == 0
+
+    - name: Mostra lo stato del processo httpd
+      debug:
+        msg: "Il processo httpd non è in esecuzione."
+      when: httpd_process.rc != 0
+
+#se trovi il processo fallisci l'installazione
+- name: Fallisci se httpd è già in esecuzione
+  hosts: webservers
+  fail:
+    msg: "Il processo httpd è già in esecuzione."
+    when: httpd_process.rc == 0
+
+- name: Installa Apache e i moduli indispensabili
+  dnf:
+    name: 
+    - httpd
+    - mod_ssl        # <--- SENZA QUESTO L'SSL NON FUNZIONERÀ MAI
+    - openssl
+    state: present
+      update_cache: true
+
+#modifica la porta di ascolto da 80 a 81
+- name: Modifica la porta di ascolto di Apache da 80 a 81
+  lineinfile:
+    path: /etc/httpd/conf/httpd.conf
+    regexp: '^Listen 80'
+    line: 'Listen 81'
+#correggi i permessi selinux per la nuova porta
+- name: Configura SELinux per consentire ad Apache di ascoltare sulla porta 81
+  seboolean:
+    name: httpd_can_network_connect
+    state: yes
+    persistent: yes
+
+#crea la pagina di benvenuto
+- name: Crea la pagina di benvenuto di Apache
+  copy:
+    dest: /var/www/html/index.html
+    content: |
+      <html>
+      <head><title>Benvenuto in Apache su Fedora!</title></head>
+      <body>
+      <h1>Apache &egrave stato installato con successo su Fedora!</h1>
+      <p>Questa &egrave la pagina di benvenuto predefinita.</p>
+      </body>
+      </html>
+
+#crea la configurazione per il bilanciatore
+- name: Crea configurazione per il bilanciatore di carico
+  copy:
+    dest: /etc/httpd/conf.d/load_balancer.conf
+    content: |
+      <Proxy "balancer://mycluster">
+          BalancerMember "http://172.16.106.131:81"
+          BalancerMember "http://172.16.106.132:81"
+      </Proxy>
+      <Location "/">
+          ProxyPass balancer://mycluster
+          ProxyPassReverse balancer://mycluster
+      </Location>
+
+- import_tasks: tasks/firewall.yml
+- import_tasks: tasks/ssl_httpd.yml
+
+- name: Permetti al bilanciatore di connettersi ai backend
+  hosts: loadbalancer
+  seboolean:
+    name: httpd_can_network_connect
+    state: yes
+    persistent: yes
     
-    - name: Avvia Apache
-      service:
-        name: httpd
-        state: restarted
-        enabled: true
+- name: Avvia Apache
+  service:
+    name: httpd
+    state: restarted
+    enabled: true

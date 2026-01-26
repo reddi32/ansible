@@ -1,13 +1,5 @@
 # In tasks/ssl_httpd.yml
 
-- name: Installa pacchetti di sicurezza
-  dnf:
-    name: 
-      - mod_ssl
-      - mod_security
-      - openssl
-    state: present
-
 - name: Crea directory per certificati
   file:
     path: /etc/httpd/ssl
@@ -52,3 +44,47 @@
           </IfModule>
       </VirtualHost>
     mode: '0644'
+
+- name: Configura Bilanciatore Apache in HTTPS sulla 444
+  copy:
+    dest: /etc/httpd/conf.d/load_balancer_ssl.conf
+    content: |
+      # 1. Diciamo ad Apache di ascoltare sulla 444
+      Listen 444
+
+      # 2. Definizione dei server backend (porta 81)
+      <Proxy "balancer://mycluster_ssl">
+          BalancerMember "http://172.16.106.131:81"
+          BalancerMember "http://172.16.106.132:81"
+          ProxySet lbmethod=byrequests
+      </Proxy>
+
+      # 3. Configurazione del VirtualHost SSL
+      <VirtualHost *:444>
+          ServerName {{ lb_ip_address }}
+
+          SSLEngine on
+          # Usa i certificati generati precedentemente
+          SSLCertificateFile /etc/httpd/ssl/cert.pem
+          SSLCertificateKeyFile /etc/httpd/ssl/key.pem
+
+          # 4. Inoltro del traffico al cluster
+          ProxyPass "/" "balancer://mycluster_ssl/"
+          ProxyPassReverse "/" "balancer://mycluster_ssl/"
+
+          # Header utili per i log dei backend
+          ProxyPreserveHost On
+          RequestHeader set X-Forwarded-Proto "https"
+          RequestHeader set X-Forwarded-Port "444"
+
+          ErrorLog "logs/balancer_ssl_error_log"
+          CustomLog "logs/balancer_ssl_access_log" combined
+      </VirtualHost>
+    mode: '0644'
+
+#correggi i permessi selinux per la nuova porta 444
+- name: Configura SELinux per consentire ad Apache di ascoltare sulla porta 444
+  seboolean:
+    name: httpd_can_network_connect
+    state: yes
+    persistent: yes

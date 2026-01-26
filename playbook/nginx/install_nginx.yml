@@ -80,3 +80,17 @@
         name: nginx
         state: started
         enabled: true
+
+    - name: abilita httpd_can_network_connect per SELinux
+      seboolean:
+        name: httpd_can_network_connect
+        state: true
+        persistent: yes
+
+    #controlla che nginx sia running
+    - name: verifica che Nginx sia in esecuzione sul LB
+      service:
+        name: nginx
+        state: started
+        enabled: true
+      tags: nginx

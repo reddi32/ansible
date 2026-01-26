@@ -50,7 +50,7 @@
           Listen 81
           Listen 444
 
-    - import_tasks: tasks/ssl_apache.yml
+    - import_tasks: tasks/ssl_httpd.yml
     - import_tasks: tasks/firewall.yml
 
     - name: Crea configurazione LB dinamica (Porte 81/444)

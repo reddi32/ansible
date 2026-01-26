@@ -26,13 +26,13 @@
         state: present
         update_cache: true
 
-    - name: Stat: /etc/httpd/conf/httpd.conf
+    - name: Stat httpd
       stat:
         path: /etc/httpd/conf/httpd.conf
       register: stat_httpd
       changed_when: false
 
-    - name: Stat: /etc/apache2/ports.conf
+    - name: Stat port
       stat:
         path: /etc/apache2/ports.conf
       register: stat_apache2

@@ -1,50 +1,90 @@
----
-# 1. PLAY PER I WEBSERVER (Installazione e Configurazione)
-- name: Verifica, Installa e Configura Apache sui Webservers
+- name: Installa e configura Apache con SSL e Firewall (nodi)
   hosts: webservers
-  become: yes
-  vars:
-    httpd_port: 81
+  become: true
   tasks:
-    - name: Controlla se il processo httpd è in esecuzione
-      shell: pgrep httpd
-      register: httpd_process
-      ignore_errors: yes
-      changed_when: false
-
-    - name: Fallisci se httpd è già in esecuzione
-      fail:
-        msg: "Il processo httpd è già in esecuzione. Interrompo."
-      when: httpd_process.rc == 0
-
-    #dnf reinstall -y httpd httpd-core httpd-tools mod_ssl
-    - name: Installa Apache e mod_ssl
+    - name: verifica se Apache è installato
       dnf:
-        name:
+        name: httpd
+        state: present
+        update_cache: true
+
+    - name: configura Apache per ascoltare sulla porta 81 e 444
+      lineinfile:
+        path: /etc/httpd/conf/httpd.conf
+        regexp: '^Listen 80'
+        line: 'Listen 81'
+
+    - name: crea la directory per il sito web di Apache
+      file:
+        path: /var/www/html
+        state: directory
+        mode: '0755'
+
+    - import_tasks: tasks/ssl_apache.yml
+    - import_tasks: tasks/firewall.yml
+
+    - name: avvia e abilita Apache
+      service:
+        name: httpd
+        state: started
+        enabled: true
+
+- name: Configura il Bilanciatore Dinamico (load balancer)
+  hosts: loadbalancer
+  become: true
+  vars:
+    lb_ip_address: "{{ lb_ip_address | default('loadbalancer.example.com') }}"
+  tasks:
+    - name: Installa Apache e mod_ssl sul LB
+      dnf:
+        name: 
           - httpd
-          - httpd-tools
           - mod_ssl
         state: present
         update_cache: true
 
-    - name: Crea placeholder di httpd.conf se mancante (solo se nessun file di conf esiste)
+    - name: configura porte globali sul Load Balancer
       copy:
-        dest: "{{ httpd_conf_path }}"
+        dest: /etc/httpd/conf.d/ports.conf
         content: |
-          # placeholder httpd.conf creato da Ansible
-          Listen 80
-        owner: root
-        group: root
-        mode: '0644'
-      when: not (stat_httpd.stat.exists or stat_apache2.stat.exists)
+          Listen 81
+          Listen 444
 
-    - name: Modifica la porta di ascolto di Apache da 80 a {{ httpd_port }}
-      lineinfile:
-        path: "{{ httpd_conf_path }}"
-        regexp: '^Listen'
-        line: "Listen {{ httpd_port }}"
-        create: yes
-        backup: yes
+    - import_tasks: tasks/ssl_apache.yml
+    - import_tasks: tasks/firewall.yml
+
+    - name: Crea configurazione LB dinamica (Porte 81/444)
+      copy:
+        dest: /etc/httpd/conf.d/load_balancer.conf
+        content: |
+          <Proxy "balancer://my_backend">
+              # I nodi rispondono sulla 444 (HTTPS)
+              BalancerMember https://172.16.106.131:444
+              BalancerMember https://172.16.106.132:444
+              ProxySet lbmethod=byrequests
+          </Proxy>
+
+          <VirtualHost *:81>
+              ServerName {{ lb_ip_address }}
+              Redirect permanent / https://{{ lb_ip_address }}:444/
+          </VirtualHost>
+
+          <VirtualHost *:444>
+              ServerName {{ lb_ip_address }}
+
+              SSLEngine on
+              SSLCertificateFile /etc/pki/tls/certs/apache-selfsigned.crt
+              SSLCertificateKeyFile /etc/pki/tls/private/apache-selfsigned.key
+
+              ProxyPreserveHost On
+              ProxyPass / balancer://my_backend/
+              ProxyPassReverse / balancer://my_backend/
+              
+              SSLProxyEngine on
+              SSLProxyVerify none
+              SSLProxyCheckPeerCN off
+              SSLProxyCheckPeerName off
+          </VirtualHost>
 
     - name: abilita httpd_can_network_connect per SELinux
       seboolean:
@@ -52,55 +92,15 @@
         state: true
         persistent: yes
 
-    - name: Crea la pagina di benvenuto di Apache
-      copy:
-        dest: /var/www/html/index.html
-        content: |
-          <html>
-          <body>
-          <h1>Apache è stato installato con successo su Fedora!</h1>
-          </body>
-          </html>
-
-    - name: Includi task SSL e Firewall
-      include_tasks: "{{ item }}"
-      loop:
-        - tasks/firewall.yml
-        - tasks/ssl_httpd.yml
-
-    - name: Avvia Apache
+    - name: Autorizza le porte 81 e 444 su SELinux
+      community.general.seport:
+        ports: 81,444
+        proto: tcp
+        setype: http_port_t
+        state: present
+    
+    - name: avvia e abilita Apache sul LB
       service:
         name: httpd
-        state: restarted
+        state: restarted # Restart per applicare il cambio porte
         enabled: true
-
-# 2. PLAY PER IL BILANCIATORE (Configurazione Proxy)
-- name: Configura il bilanciatore di carico
-  hosts: loadbalancer
-  become: yes
-  tasks:
-    - name: Permetti al bilanciatore di connettersi ai backend (SELinux)
-      seboolean:
-        name: httpd_can_network_connect
-        state: true
-        persistent: true
-
-    - name: Crea configurazione per il bilanciatore di carico
-      copy:
-        dest: /etc/httpd/conf.d/load_balancer.conf
-        content: |
-          <Proxy "balancer://mycluster">
-              BalancerMember "http://172.16.106.131:81"
-              BalancerMember "http://172.16.106.132:81"
-          </Proxy>
-          <Location "/">
-              ProxyPass "balancer://mycluster/"
-              ProxyPassReverse "balancer://mycluster/"
-          </Location>
-      notify: Riavvia Apache LB
-
-  handlers:
-    - name: Riavvia Apache LB
-      service:
-        name: httpd
-        state: restarted

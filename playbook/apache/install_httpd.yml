@@ -26,28 +26,40 @@
         state: present
         update_cache: true
 
-    - name: Verifica esistenza del file di configurazione Apache
+    - name: Stat: /etc/httpd/conf/httpd.conf
       stat:
         path: /etc/httpd/conf/httpd.conf
-      register: httpd_conf_stat
+      register: stat_httpd
+      changed_when: false
 
-    - name: Crea placeholder di httpd.conf se mancante (solo se pacchetto httpd installato)
+    - name: Stat: /etc/apache2/ports.conf
+      stat:
+        path: /etc/apache2/ports.conf
+      register: stat_apache2
+      changed_when: false
+
+    - name: Imposta httpd_conf_path in base ai file esistenti
+      set_fact:
+        httpd_conf_path: >-
+          {{ '/etc/httpd/conf/httpd.conf'
+             if stat_httpd.stat.exists
+             else ('/etc/apache2/ports.conf' if stat_apache2.stat.exists else '/etc/httpd/conf/httpd.conf') }}
+      changed_when: false
+
+    - name: Crea placeholder di httpd.conf se mancante (solo se nessun file di conf esiste)
       copy:
-        dest: /etc/httpd/conf/httpd.conf
+        dest: "{{ httpd_conf_path }}"
         content: |
           # placeholder httpd.conf creato da Ansible
           Listen 80
         owner: root
         group: root
         mode: '0644'
-      when:
-        - httpd_conf_stat.stat.exists == False
-        - "'httpd' in ansible_facts.packages or ansible_facts.os_family == 'RedHat'"
-      # opzionale: rimuovi se preferisci non creare placeholder
+      when: not (stat_httpd.stat.exists or stat_apache2.stat.exists)
 
     - name: Modifica la porta di ascolto di Apache da 80 a {{ httpd_port }}
       lineinfile:
-        path: /etc/httpd/conf/httpd.conf
+        path: "{{ httpd_conf_path }}"
         regexp: '^Listen'
         line: "Listen {{ httpd_port }}"
         create: yes

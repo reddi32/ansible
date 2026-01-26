@@ -40,10 +40,7 @@
 
     - name: Imposta httpd_conf_path in base ai file esistenti
       set_fact:
-        httpd_conf_path: >-
-          {{ '/etc/httpd/conf/httpd.conf'
-             if stat_httpd.stat.exists
-             else ('/etc/apache2/ports.conf' if stat_apache2.stat.exists else '/etc/httpd/conf/httpd.conf') }}
+        httpd_conf_path: "{{ '/etc/httpd/conf/httpd.conf' if stat_httpd.stat.exists else ('/etc/apache2/ports.conf' if stat_apache2.stat.exists else '/etc/httpd/conf/httpd.conf') }}"
       changed_when: false
 
     - name: Crea placeholder di httpd.conf se mancante (solo se nessun file di conf esiste)

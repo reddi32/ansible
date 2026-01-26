@@ -91,14 +91,7 @@
         name: httpd_can_network_connect
         state: true
         persistent: yes
-
-    - name: Autorizza le porte 81 e 444 su SELinux
-      community.general.seport:
-        ports: 81,444
-        proto: tcp
-        setype: http_port_t
-        state: present
-    
+  
     - name: avvia e abilita Apache sul LB
       service:
         name: httpd

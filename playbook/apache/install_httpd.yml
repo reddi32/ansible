@@ -20,7 +20,7 @@
         state: directory
         mode: '0755'
 
-    - import_tasks: tasks/ssl_apache.yml
+    - import_tasks: tasks/ssl_httpd.yml
     - import_tasks: tasks/firewall.yml
 
     - name: avvia e abilita Apache

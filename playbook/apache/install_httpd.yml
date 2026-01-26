@@ -26,11 +26,32 @@
         state: present
         update_cache: true
 
-    - name: Modifica la porta di ascolto di Apache da 80 a 81
+    - name: Verifica esistenza del file di configurazione Apache
+      stat:
+        path: /etc/httpd/conf/httpd.conf
+      register: httpd_conf_stat
+
+    - name: Crea placeholder di httpd.conf se mancante (solo se pacchetto httpd installato)
+      copy:
+        dest: /etc/httpd/conf/httpd.conf
+        content: |
+          # placeholder httpd.conf creato da Ansible
+          Listen 80
+        owner: root
+        group: root
+        mode: '0644'
+      when:
+        - httpd_conf_stat.stat.exists == False
+        - "'httpd' in ansible_facts.packages or ansible_facts.os_family == 'RedHat'"
+      # opzionale: rimuovi se preferisci non creare placeholder
+
+    - name: Modifica la porta di ascolto di Apache da 80 a {{ httpd_port }}
       lineinfile:
         path: /etc/httpd/conf/httpd.conf
-        regexp: '^Listen 80'
+        regexp: '^Listen'
         line: "Listen {{ httpd_port }}"
+        create: yes
+        backup: yes
 
     - name: Ensure semanage (policycoreutils) is installed for SELinux port management
       dnf:

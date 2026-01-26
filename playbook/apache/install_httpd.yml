@@ -18,14 +18,13 @@
       when: httpd_process.rc == 0
 
     #dnf reinstall -y httpd httpd-core httpd-tools mod_ssl
-    - name: Installa o Reinstalla Apache e mod_ssl
+    - name: Installa Apache e mod_ssl
       dnf:
         name:
           - httpd
           - httpd-tools
           - mod_ssl
         state: present
-        reinstall: yes
         update_cache: true
 
     - name: Crea placeholder di httpd.conf se mancante (solo se nessun file di conf esiste)

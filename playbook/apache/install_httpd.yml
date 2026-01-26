@@ -17,12 +17,6 @@
         msg: "Il processo httpd è già in esecuzione. Interrompo."
       when: httpd_process.rc == 0
 
-    #pulisci dnf cache prima di installare
-    - name: Pulisci la cache di DNF
-      dnf:
-        state: clean all
-        update_cache: true
-
     #dnf reinstall -y httpd httpd-core httpd-tools mod_ssl
     - name: Installa o Reinstalla Apache e mod_ssl
       dnf:

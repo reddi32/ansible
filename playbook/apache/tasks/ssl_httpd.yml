@@ -21,7 +21,7 @@
 
 - name: Configura VirtualHost SSL su porta 444
   copy:
-    dest: /etc/httpd/conf.d/ssl_custom.conf
+    dest: /etc/httpd/conf.d/ssl.conf
     content: |
       Listen 444
       <VirtualHost *:444>

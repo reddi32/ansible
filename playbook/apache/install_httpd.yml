@@ -17,31 +17,22 @@
         msg: "Il processo httpd è già in esecuzione. Interrompo."
       when: httpd_process.rc == 0
 
-    - name: Installa Apache e i moduli indispensabili
+    #pulisci dnf cache prima di installare
+    - name: Pulisci la cache di DNF
       dnf:
-        name: 
-          - httpd
-          - mod_ssl
-          - openssl
-        state: present
+        state: clean all
         update_cache: true
 
-    - name: Stat httpd
-      stat:
-        path: /etc/httpd/conf/httpd.conf
-      register: stat_httpd
-      changed_when: false
-
-    - name: Stat port
-      stat:
-        path: /etc/apache2/ports.conf
-      register: stat_apache2
-      changed_when: false
-
-    - name: Imposta httpd_conf_path in base ai file esistenti
-      set_fact:
-        httpd_conf_path: "{{ '/etc/httpd/conf/httpd.conf' if stat_httpd.stat.exists else ('/etc/apache2/ports.conf' if stat_apache2.stat.exists else '/etc/httpd/conf/httpd.conf') }}"
-      changed_when: false
+    #dnf reinstall -y httpd httpd-core httpd-tools mod_ssl
+    - name: Installa o Reinstalla Apache e mod_ssl
+      dnf:
+        name:
+          - httpd
+          - httpd-tools
+          - mod_ssl
+        state: present
+        reinstall: yes
+        update_cache: true
 
     - name: Crea placeholder di httpd.conf se mancante (solo se nessun file di conf esiste)
       copy:
@@ -67,7 +58,7 @@
         name: httpd_can_network_connect
         state: true
         persistent: yes
-        
+
     - name: Crea la pagina di benvenuto di Apache
       copy:
         dest: /var/www/html/index.html

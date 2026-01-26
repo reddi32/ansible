@@ -75,7 +75,7 @@
       failed_when: false
 
     - name: Aggiungi la porta {{ httpd_port }} a SELinux (solo se mancante)
-      command: semanage port -a -t http_port_t -p tcp {{ httpd_port }}
+      shell: semanage port -a -t http_port_t -p tcp {{ httpd_port }}
       args:
         warn: false
       when: "'tcp {{ httpd_port }}' not in selinux_ports.stdout"

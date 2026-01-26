@@ -62,24 +62,12 @@
         create: yes
         backup: yes
 
-    - name: Ensure semanage (policycoreutils) is installed for SELinux port management
-      dnf:
-        name: policycoreutils-python-utils
-        state: present
-        update_cache: yes
-
-    - name: Ottieni lista porte SELinux per http_port_t
-      shell: semanage port -l | awk '/http_port_t/ {print $2 " " $3}'
-      register: selinux_ports
-      changed_when: false
-      failed_when: false
-
-    - name: Aggiungi la porta {{ httpd_port }} a SELinux (solo se mancante)
-      shell: semanage port -a -t http_port_t -p tcp {{ httpd_port }}
-      args:
-        warn: false
-      when: "'tcp {{ httpd_port }}' not in selinux_ports.stdout"
-
+    - name: abilita httpd_can_network_connect per SELinux
+      seboolean:
+        name: httpd_can_network_connect
+        state: true
+        persistent: yes
+        
     - name: Crea la pagina di benvenuto di Apache
       copy:
         dest: /var/www/html/index.html

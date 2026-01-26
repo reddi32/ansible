@@ -7,6 +7,15 @@
         name: httpd
         state: present
         update_cache: true
+    
+    #installa apache
+    - name: installa Apache e mod_ssl
+      dnf:
+        name: 
+          - httpd
+          - mod_ssl
+        state: present
+        update_cache: true
 
     - name: configura Apache per ascoltare sulla porta 81 e 444
       lineinfile:

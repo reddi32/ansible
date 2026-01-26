@@ -34,7 +34,7 @@
 
     - name: Configura SELinux per consentire ad Apache di ascoltare sulla porta 81
       seport:
-        ports: "{{ httpd_port }}"
+        ports: "{{ httpd_port | int }}"
         proto: tcp
         setype: http_port_t
         state: present
@@ -69,8 +69,8 @@
     - name: Permetti al bilanciatore di connettersi ai backend (SELinux)
       seboolean:
         name: httpd_can_network_connect
-        state: yes
-        persistent: yes
+        state: true
+        persistent: true
 
     - name: Crea configurazione per il bilanciatore di carico
       copy:

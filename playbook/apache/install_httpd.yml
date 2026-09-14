@@ -4,7 +4,9 @@
   tasks:
     - name: verifica se Apache è installato
       dnf:
-        name: httpd
+        name: 
+          - httpd
+          - mod_ssl
         state: present
         update_cache: true
     

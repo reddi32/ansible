@@ -1,4 +1,3 @@
-```yaml
 ---
 - name: Installazione e configurazione Apache SSL - Workers
   hosts: workers

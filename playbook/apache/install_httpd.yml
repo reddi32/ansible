@@ -1,5 +1,5 @@
 - name: Installa e configura Apache con SSL e Firewall (nodi)
-  hosts: webservers
+  hosts: workers
   become: true
   tasks:
     - name: verifica se Apache è installato

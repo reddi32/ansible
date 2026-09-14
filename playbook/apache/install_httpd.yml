@@ -89,6 +89,7 @@
               SSLProxyCheckPeerCN off
               SSLProxyCheckPeerName off
           </VirtualHost>
+      when: inventory_hostname in groups['loadbalancer']
 
     - name: abilita httpd_can_network_connect per SELinux
       seboolean:

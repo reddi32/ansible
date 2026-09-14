@@ -44,6 +44,7 @@
           </IfModule>
       </VirtualHost>
     mode: '0644'
+  when: inventory_hostname in groups['workers']
 
 - name: Configura Bilanciatore Apache in HTTPS sulla 444
   copy:
@@ -81,6 +82,7 @@
           CustomLog "logs/balancer_ssl_access_log" combined
       </VirtualHost>
     mode: '0644'
+  when: inventory_hostname in groups['loadbalancer']
 
 #correggi i permessi selinux per la nuova porta 444
 - name: Configura SELinux per consentire ad Apache di ascoltare sulla porta 444

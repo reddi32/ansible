@@ -1,5 +1,26 @@
 # In tasks/ssl_httpd.yml
 
+- name: Installa pacchetti Python per la gestione di SELinux
+  dnf:
+    name:
+      - python3-libsemanage
+      - policycoreutils-python-utils
+    state: present
+
+- name: Permetti ad Apache di ascoltare sulla porta 444 (SELinux Port)
+  seport:
+    ports: 444
+    proto: tcp
+    setype: http_port_t
+    state: present
+
+- name: Abilita connessioni outbound per Apache (Solo LoadBalancer)
+  seboolean:
+    name: httpd_can_network_connect
+    state: yes
+    persistent: yes
+  when: inventory_hostname in groups['loadbalancer']
+
 - name: Crea directory per certificati
   file:
     path: /etc/httpd/ssl

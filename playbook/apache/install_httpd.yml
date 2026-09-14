@@ -1,20 +1,21 @@
-- name: Installa e configura Apache con SSL e Firewall (nodi)
+---
+- name: Installa e configura Apache con SSL e Firewall (Workers)
   hosts: workers
   become: true
   tasks:
-    - name: verifica se Apache è installato
+    - name: Verifica e installa Apache e mod_ssl
       dnf:
-        name: 
+        name:
           - httpd
           - mod_ssl
         state: present
         update_cache: true
-    
-    - name: mostra messaggio di conferma per l'installazione di Apache
-      debug:
-        msg: "Apache è stato installato correttamente."
 
-    - name: crea la directory per il sito web di Apache
+    - name: Mostra messaggio di conferma per l'installazione di Apache
+      debug:
+        msg: "Apache e mod_ssl sono stati installati correttamente sui worker."
+
+    - name: Crea la directory per il sito web di Apache
       file:
         path: /var/www/html
         state: directory
@@ -29,50 +30,59 @@
     - import_tasks: tasks/ssl_httpd.yml
     - import_tasks: tasks/firewall.yml
 
-    - name: configura Apache per ascoltare sulla porta 81 e 444
-      lineinfile:
-        path: /etc/httpd/conf/httpd.conf
-        regexp: '^Listen 80'
-        line: 'Listen 81'
-
-    - name: avvia e abilita Apache
-      service:
-        name: httpd
-        state: started
-        enabled: true
-
-- name: Configura il Bilanciatore Dinamico (load balancer)
-  hosts: loadbalancer
-  become: true
-  vars:
-    lb_ip_address: "{{ ansible_host }}"
-  tasks:
-    - name: Installa Apache e mod_ssl sul LB
-      dnf:
-        name: 
-          - httpd
-          - mod_ssl
-        state: present
-        update_cache: true
-
-    - name: configura porte globali sul Load Balancer
+    - name: Configura le porte di ascolto globali nei Workers (81 e 444)
       copy:
         dest: /etc/httpd/conf.d/ports.conf
         content: |
           Listen 81
           Listen 444
+        mode: '0644'
+
+    - name: Avvia e abilita il servizio Apache
+      service:
+        name: httpd
+        state: restarted
+        enabled: true
+
+- name: Configura il Bilanciatore Dinamico (Load Balancer)
+  hosts: loadbalancer
+  become: true
+  vars:
+    lb_ip_address: "{{ ansible_host | default('192.168.56.10') }}"
+  tasks:
+    - name: Installa Apache e mod_ssl sul Load Balancer
+      dnf:
+        name:
+          - httpd
+          - mod_ssl
+        state: present
+        update_cache: true
+
+    - name: Assicura la presenza della directory conf.d
+      file:
+        path: /etc/httpd/conf.d
+        state: directory
+        mode: '0755'
 
     - import_tasks: tasks/ssl_httpd.yml
     - import_tasks: tasks/firewall.yml
+
+    - name: Configura le porte globali sul Load Balancer
+      copy:
+        dest: /etc/httpd/conf.d/ports.conf
+        content: |
+          Listen 81
+          Listen 444
+        mode: '0644'
 
     - name: Crea configurazione LB dinamica (Porte 81/444)
       copy:
         dest: /etc/httpd/conf.d/load_balancer.conf
         content: |
           <Proxy "balancer://my_backend">
-              # I nodi rispondono sulla 444 (HTTPS)
-              BalancerMember https://172.16.106.131:444
-              BalancerMember https://172.16.106.132:444
+              # I nodi worker rispondono sulla 444 (HTTPS)
+              BalancerMember https://192.168.56.11:444
+              BalancerMember https://192.168.56.12:444
               ProxySet lbmethod=byrequests
           </Proxy>
 
@@ -85,8 +95,8 @@
               ServerName {{ lb_ip_address }}
 
               SSLEngine on
-              SSLCertificateFile /etc/pki/tls/certs/apache-selfsigned.crt
-              SSLCertificateKeyFile /etc/pki/tls/private/apache-selfsigned.key
+              SSLCertificateFile /etc/httpd/ssl/cert.pem
+              SSLCertificateKeyFile /etc/httpd/ssl/key.pem
 
               ProxyPreserveHost On
               ProxyPass / balancer://my_backend/
@@ -97,24 +107,17 @@
               SSLProxyCheckPeerCN off
               SSLProxyCheckPeerName off
           </VirtualHost>
-      when: inventory_hostname in groups['loadbalancer']
+        mode: '0644'
 
-    - name: abilita httpd_can_network_connect per SELinux
+    - name: Abilita httpd_can_network_connect per SELinux
       seboolean:
         name: httpd_can_network_connect
         state: true
         persistent: yes
-  
-    - name: avvia e abilita Apache sul LB
-      service:
-        name: httpd
-        state: restarted # Restart per applicare il cambio porte
-        enabled: true
 
-        #controlla che apache sia running
-    - name: verifica che apache sia in esecuzione sul LB
+    - name: Avvia e abilita Apache sul Load Balancer
       service:
         name: httpd
-        state: started
+        state: restarted
         enabled: true
       tags: apache

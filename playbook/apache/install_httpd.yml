@@ -20,6 +20,12 @@
         state: directory
         mode: '0755'
 
+    - name: Assicura la presenza della directory conf.d
+      file:
+        path: /etc/httpd/conf.d
+        state: directory
+        mode: '0755'
+
     - import_tasks: tasks/ssl_httpd.yml
     - import_tasks: tasks/firewall.yml
 

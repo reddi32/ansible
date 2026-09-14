@@ -37,7 +37,7 @@
   hosts: loadbalancer
   become: true
   vars:
-    lb_ip_address: "{{ lb_ip_address | default('loadbalancer.example.com') }}"
+    lb_ip_address: "{{ ansible_host }}"
   tasks:
     - name: Installa Apache e mod_ssl sul LB
       dnf:

@@ -1,11 +1,27 @@
-- name: Installa e configura Apache sui Workers
+```yaml
+---
+- name: Installazione e configurazione Apache SSL - Workers
   hosts: workers
   become: true
 
+  vars:
+    apache_ssl_dir: /etc/httpd/ssl
+    apache_document_root: /var/www/html
+
+    apache_ssl_cert: /etc/httpd/ssl/cert.pem
+    apache_ssl_key: /etc/httpd/ssl/key.pem
+
+    apache_http_port: 81
+    apache_https_port: 444
+
   tasks:
 
-    - name: Installa Apache e mod_ssl
-      dnf:
+    # ============================================================
+    # INSTALLAZIONE PACCHETTI
+    # ============================================================
+
+    - name: Installa Apache, mod_ssl e strumenti SELinux
+      ansible.builtin.dnf:
         name:
           - httpd
           - mod_ssl
@@ -13,192 +29,212 @@
         state: present
         update_cache: true
 
-    - name: Crea document root
-      file:
-        path: /var/www/html
+    # ============================================================
+    # DIRECTORY
+    # ============================================================
+
+    - name: Crea DocumentRoot
+      ansible.builtin.file:
+        path: "{{ apache_document_root }}"
         state: directory
+        owner: root
+        group: root
         mode: '0755'
 
-    - name: Crea directory certificati
-      file:
-        path: /etc/httpd/ssl
+    - name: Crea directory certificati SSL
+      ansible.builtin.file:
+        path: "{{ apache_ssl_dir }}"
         state: directory
+        owner: root
+        group: root
         mode: '0755'
 
-    - name: Configura SELinux porta 444
-      seport:
-        ports: 444
+    # ============================================================
+    # CERTIFICATO AUTOFIRMATO
+    # ============================================================
+
+    - name: Genera chiave privata e certificato autofirmato
+      ansible.builtin.command:
+        cmd: >
+          openssl req
+          -new
+          -newkey rsa:2048
+          -nodes
+          -x509
+          -days 365
+          -subj "/C=IT/ST=Italy/L=Rome/O=MyCompany/OU=IT/CN=example.com"
+          -keyout "{{ apache_ssl_key }}"
+          -out "{{ apache_ssl_cert }}"
+      args:
+        creates: "{{ apache_ssl_cert }}"
+
+    - name: Imposta permessi sulla chiave privata
+      ansible.builtin.file:
+        path: "{{ apache_ssl_key }}"
+        owner: root
+        group: root
+        mode: '0600'
+
+    - name: Imposta permessi sul certificato
+      ansible.builtin.file:
+        path: "{{ apache_ssl_cert }}"
+        owner: root
+        group: root
+        mode: '0644'
+
+    # ============================================================
+    # SELINUX
+    # ============================================================
+
+    - name: Configura SELinux per la porta HTTP 81
+      community.general.seport:
+        ports: "{{ apache_http_port }}"
         proto: tcp
         setype: http_port_t
         state: present
 
-    - name: Genera certificato autofirmato
-      command: >
-        openssl req -new -newkey rsa:2048
-        -days 365 -nodes -x509
-        -subj "/C=IT/ST=Italy/L=Rome/O=MyCompany/OU=IT/CN=example.com"
-        -keyout /etc/httpd/ssl/key.pem
-        -out /etc/httpd/ssl/cert.pem
-      args:
-        creates: /etc/httpd/ssl/cert.pem
+    - name: Configura SELinux per la porta HTTPS 444
+      community.general.seport:
+        ports: "{{ apache_https_port }}"
+        proto: tcp
+        setype: http_port_t
+        state: present
 
-    - name: Configura porte Apache
-      copy:
+    # ============================================================
+    # PORTE APACHE
+    # ============================================================
+
+    - name: Configura porte di ascolto Apache
+      ansible.builtin.copy:
         dest: /etc/httpd/conf.d/ports.conf
+        owner: root
+        group: root
         mode: '0644'
         content: |
-          Listen 81
-          Listen 444
+          Listen {{ apache_http_port }}
+          Listen {{ apache_https_port }}
 
-    - name: Configura SSL Worker
-      copy:
-        dest: /etc/httpd/conf.d/ssl-worker.conf
+    # ============================================================
+    # CONFIGURAZIONE HTTP
+    # ============================================================
+
+    - name: Configura VirtualHost HTTP
+      ansible.builtin.copy:
+        dest: /etc/httpd/conf.d/worker-http.conf
+        owner: root
+        group: root
         mode: '0644'
         content: |
-          <VirtualHost *:444>
-              ServerAdmin admin@example.com
-              DocumentRoot /var/www/html
+          <VirtualHost *:{{ apache_http_port }}>
+              ServerName example.com
+
+              DocumentRoot {{ apache_document_root }}
+
+              ErrorLog logs/http_error_log
+              CustomLog logs/http_access_log combined
+
+              RewriteEngine On
+              RewriteRule ^/(.*)$ https://%{HTTP_HOST}:{{ apache_https_port }}/$1 [R=301,L]
+          </VirtualHost>
+
+    # ============================================================
+    # CONFIGURAZIONE HTTPS
+    # ============================================================
+
+    - name: Configura VirtualHost HTTPS
+      ansible.builtin.copy:
+        dest: /etc/httpd/conf.d/worker-ssl.conf
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          <VirtualHost *:{{ apache_https_port }}>
+
+              ServerName example.com
+
+              DocumentRoot {{ apache_document_root }}
 
               SSLEngine on
-              SSLCertificateFile /etc/httpd/ssl/cert.pem
-              SSLCertificateKeyFile /etc/httpd/ssl/key.pem
+
+              SSLCertificateFile {{ apache_ssl_cert }}
+              SSLCertificateKeyFile {{ apache_ssl_key }}
 
               SSLProtocol -all +TLSv1.2 +TLSv1.3
 
               ErrorLog logs/ssl_error_log
               CustomLog logs/ssl_access_log combined
+
+              <Directory "{{ apache_document_root }}">
+                  AllowOverride All
+                  Require all granted
+              </Directory>
+
           </VirtualHost>
 
-    - name: Configura firewall porta 81
-      firewalld:
-        port: 81/tcp
+    # ============================================================
+    # FIREWALL
+    # ============================================================
+
+    - name: Installa firewalld
+      ansible.builtin.dnf:
+        name: firewalld
+        state: present
+
+    - name: Avvia firewalld
+      ansible.builtin.service:
+        name: firewalld
+        state: started
+        enabled: true
+
+    - name: Abilita porta HTTP 81 nel firewall
+      ansible.posix.firewalld:
+        port: "{{ apache_http_port }}/tcp"
         permanent: true
         immediate: true
         state: enabled
 
-    - name: Configura firewall porta 444
-      firewalld:
-        port: 444/tcp
+    - name: Abilita porta HTTPS 444 nel firewall
+      ansible.posix.firewalld:
+        port: "{{ apache_https_port }}/tcp"
         permanent: true
         immediate: true
         state: enabled
+
+    # ============================================================
+    # VERIFICA CONFIGURAZIONE
+    # ============================================================
 
     - name: Verifica configurazione Apache
-      command: httpd -t
+      ansible.builtin.command:
+        cmd: httpd -t
+      register: apache_config_test
       changed_when: false
+
+    - name: Mostra risultato verifica Apache
+      ansible.builtin.debug:
+        msg: "{{ apache_config_test.stdout }}"
+
+    # ============================================================
+    # SERVIZIO
+    # ============================================================
 
     - name: Abilita e riavvia Apache
-      service:
+      ansible.builtin.service:
         name: httpd
         state: restarted
         enabled: true
 
-- name: Configura Load Balancer
-  hosts: loadbalancer
-  become: true
+    # ============================================================
+    # VERIFICA FINALE
+    # ============================================================
 
-  vars:
-    lb_ip_address: "{{ ansible_host | default('192.168.56.10') }}"
-
-  tasks:
-
-    - name: Installa Apache e mod_ssl
-      dnf:
-        name:
-          - httpd
-          - mod_ssl
-          - policycoreutils-python-utils
-        state: present
-        update_cache: true
-
-    - name: Crea directory certificati
-      file:
-        path: /etc/httpd/ssl
-        state: directory
-        mode: '0755'
-
-    - name: Configura SELinux porta 444
-      seport:
-        ports: 444
-        proto: tcp
-        setype: http_port_t
-        state: present
-
-    - name: Abilita connessioni outbound Apache
-      seboolean:
-        name: httpd_can_network_connect
-        state: true
-        persistent: true
-
-    - name: Configura porte Apache
-      copy:
-        dest: /etc/httpd/conf.d/ports.conf
-        mode: '0644'
-        content: |
-          Listen 81
-          Listen 444
-
-    - name: Configura Load Balancer HTTPS
-      copy:
-        dest: /etc/httpd/conf.d/load_balancer.conf
-        mode: '0644'
-        content: |
-          <Proxy "balancer://my_backend">
-              BalancerMember https://192.168.56.11:444
-              BalancerMember https://192.168.56.12:444
-              ProxySet lbmethod=byrequests
-          </Proxy>
-
-          <VirtualHost *:81>
-              ServerName {{ lb_ip_address }}
-
-              Redirect permanent / https://{{ lb_ip_address }}:444/
-          </VirtualHost>
-
-          <VirtualHost *:444>
-              ServerName {{ lb_ip_address }}
-
-              SSLEngine on
-              SSLCertificateFile /etc/httpd/ssl/cert.pem
-              SSLCertificateKeyFile /etc/httpd/ssl/key.pem
-
-              ProxyPreserveHost On
-
-              SSLProxyEngine On
-              SSLProxyVerify None
-              SSLProxyCheckPeerCN Off
-              SSLProxyCheckPeerName Off
-
-              ProxyPass / balancer://my_backend/
-              ProxyPassReverse / balancer://my_backend/
-
-              RequestHeader set X-Forwarded-Proto "https"
-              RequestHeader set X-Forwarded-Port "444"
-
-              ErrorLog logs/balancer_ssl_error_log
-              CustomLog logs/balancer_ssl_access_log combined
-          </VirtualHost>
-
-    - name: Configura firewall porta 81
-      firewalld:
-        port: 81/tcp
-        permanent: true
-        immediate: true
-        state: enabled
-
-    - name: Configura firewall porta 444
-      firewalld:
-        port: 444/tcp
-        permanent: true
-        immediate: true
-        state: enabled
-
-    - name: Verifica configurazione Apache
-      command: httpd -t
+    - name: Verifica stato Apache
+      ansible.builtin.command:
+        cmd: systemctl is-active httpd
+      register: apache_status
       changed_when: false
 
-    - name: Riavvia Apache
-      service:
-        name: httpd
-        state: restarted
-        enabled: true
+    - name: Mostra stato Apache
+      ansible.builtin.debug:
+        msg: "Apache è {{ apache_status.stdout }}"
+```
